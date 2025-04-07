@@ -26,7 +26,7 @@ services:
       - ./cleaned_data:/app/cleaned_data
       # Optional: Mount a directory for task2 to WRITE its KPI results
       # Ensure task2.py writes KPIs here (e.g., /app/kpi_output/category_kpis.parquet)
-      - ./kpi_results:/app/kpi_output
+      - ./kpi_results:/app/kpi_results
     depends_on:
       data_cleaning:
         # This is the key: waits for the 'data_cleaning' service's

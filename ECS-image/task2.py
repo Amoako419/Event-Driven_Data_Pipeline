@@ -22,13 +22,21 @@ def main():
         # --- Read input data from specific cleaned Parquet files ---
         logger.info("Attempting to load cleaned Parquet files from ../Output/ directory...")
 
-        # Paths provided by the user
-        orders_path = "data/Cleaned_Output/clean_orders.parquet/*.parquet"
-        order_items_path = "data/Cleaned_Output/clean_order_items.parquet/*.parquet"
-        products_path = "data/Cleaned_Output/clean_products.parquet/*.parquet"
+        # --- In task2.py ---
 
-        logger.info(f"Reading orders data from: {orders_path}")
-        orders_df = spark.read.parquet(orders_path)
+        # Paths should point to the 'cleaned_data' directory mapped in docker-compose
+        orders_path = "cleaned_data/clean_orders.parquet"
+        order_items_path = "cleaned_data/clean_order_items.parquet"
+        products_path = "cleaned_data/clean_products.parquet"
+
+        logger.info(f"Reading orders data from directory: {orders_path}") # Updated log message
+        orders_df = spark.read.parquet(orders_path) # Keep this line as is (reads the directory)
+
+        logger.info(f"Reading order items data from directory: {order_items_path}")
+        order_items_df = spark.read.parquet(order_items_path)
+
+        logger.info(f"Reading products data from directory: {products_path}")
+        products_df = spark.read.parquet(products_path)
 
         logger.info(f"Reading order items data from: {order_items_path}")
         order_items_df = spark.read.parquet(order_items_path)
@@ -124,8 +132,8 @@ def main():
     try:
         # --- Write results to Parquet files ---
         # Using a different output directory to avoid overwriting input, adjust as needed
-        output_path_category = "data/Data_cp/KPI_Output/category_kpis.parquet"
-        output_path_order = "data/Data_cp/KPI_Output/order_kpis.parquet"
+        output_path_category = "kpi_results/category_kpis_parquet"
+        output_path_order = "kpi_results/order_kpis_parquet"
 
         logger.info(f"Writing Category-Level KPIs to Parquet: {output_path_category}")
         # Ensure the ../KPI_Output directory exists

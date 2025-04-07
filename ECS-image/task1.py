@@ -106,13 +106,21 @@ def main():
         return
 
     try:
-        # Write the cleaned data to Parquet files (or another output format)
-        orders_clean.write.mode("overwrite").parquet("data/Cleaned_Output/clean_orders.parquet")
-        order_items_clean.write.mode("overwrite").parquet("data/Cleaned_Output/clean_order_items.parquet")
-        products_clean.write.mode("overwrite").parquet("data/Cleaned_Output/clean_products.parquet")
-        logger.info("Cleaned data written successfully.")
+        # Make sure the path starts with "cleaned_data/"
+        output_orders_path = "cleaned_data/clean_orders.parquet"
+        output_order_items_path = "cleaned_data/clean_order_items.parquet"
+        output_products_path = "cleaned_data/clean_products.parquet"
+
+        logger.info(f"Writing cleaned orders to: {output_orders_path}")
+        orders_clean.write.mode("overwrite").parquet(output_orders_path) 
+
+        logger.info(f"Writing cleaned order items to: {output_order_items_path}")
+        order_items_clean.write.mode("overwrite").parquet(output_order_items_path)
+
+        logger.info(f"Writing cleaned products to: {output_products_path}")
+        products_clean.write.mode("overwrite").parquet(output_products_path) 
     except Exception as e:
-        logger.exception("Error writing cleaned data: %s", e)
+            logger.exception("Error writing cleaned data: %s", e)
 
     # Stop Spark session
     spark.stop()
