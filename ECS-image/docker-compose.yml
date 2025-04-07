@@ -1,0 +1,17 @@
+version: "3.8"
+services:
+  data_cleaning:
+    build: .
+    container_name: data_cleaning
+    command: ["python3", "task1.py"]
+    volumes:
+      - ./data:/app/data  # Mount local data directory (if needed)
+
+  kpi_computation:
+    build: .
+    container_name: kpi_computation
+    command: ["python3", "task2.py"]
+    volumes:
+      - ./data:/app/data  # Mount the same data directory if the KPI script reads from it
+    depends_on:
+      - data_cleaning
