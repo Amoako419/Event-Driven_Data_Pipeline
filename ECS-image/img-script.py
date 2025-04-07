@@ -44,7 +44,7 @@ def main():
         # Join data for Category-Level KPIs
         joined_category_df = (
             order_items_df
-            .join(orders_df.select("order_id", "order_date", "status"), on="order_id")
+            .join(orders_df.select("order_id", "order_date"), on="order_id")
             .join(products_df.select(col("id").alias("product_id"), "category"), on="product_id")
             .withColumn("is_returned", when(col("status") == "returned", 1).otherwise(0))
         )
