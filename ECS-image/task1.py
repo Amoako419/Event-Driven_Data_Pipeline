@@ -86,9 +86,9 @@ def main():
 
     try:
         # Read data files (adjust paths as necessary; using wildcards to concatenate files)
-        orders_df = spark.read.option("header", True).csv("path/to/orders/*.csv", inferSchema=True)
-        order_items_df = spark.read.option("header", True).csv("path/to/order_items/*.csv", inferSchema=True)
-        products_df = spark.read.option("header", True).csv("path/to/products.csv", inferSchema=True)
+        orders_df = spark.read.option("header", True).csv("data/Data_cp/orders/*.csv", inferSchema=True)
+        order_items_df = spark.read.option("header", True).csv("data/Data_cp/order_items/*.csv", inferSchema=True)
+        products_df = spark.read.option("header", True).csv("data/Data_cp/products.csv", inferSchema=True)
         logger.info("Data files loaded successfully.")
     except Exception as e:
         logger.exception("Error loading CSV files: %s", e)
@@ -107,9 +107,9 @@ def main():
 
     try:
         # Write the cleaned data to Parquet files (or another output format)
-        orders_clean.write.mode("overwrite").parquet("path/to/output/clean_orders.parquet")
-        order_items_clean.write.mode("overwrite").parquet("path/to/output/clean_order_items.parquet")
-        products_clean.write.mode("overwrite").parquet("path/to/output/clean_products.parquet")
+        orders_clean.write.mode("overwrite").parquet("data/Cleaned_Output/clean_orders.parquet")
+        order_items_clean.write.mode("overwrite").parquet("data/Cleaned_Output/clean_order_items.parquet")
+        products_clean.write.mode("overwrite").parquet("data/Cleaned_Output/clean_products.parquet")
         logger.info("Cleaned data written successfully.")
     except Exception as e:
         logger.exception("Error writing cleaned data: %s", e)
