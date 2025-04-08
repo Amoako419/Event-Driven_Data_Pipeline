@@ -77,18 +77,22 @@ def clean_products(products_df):
 
 def main():
     try:
-        # Initialize Spark session
-        spark = SparkSession.builder.appName("DataCleaningAndValidation").getOrCreate()
-        logger.info("Spark session started.")
+        spark = SparkSession.builder \
+            .appName("DataCleaningECS") \
+            .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem") \
+            .config("spark.hadoop.fs.s3a.aws.credentials.provider", "com.amazonaws.auth.InstanceProfileCredentialsProvider") \
+            .getOrCreate()
+
+        logger.info("Spark session created with S3A configuration.")
     except Exception as e:
         logger.exception("Error starting Spark session: %s", e)
         return
 
     try:
         # Read data files (adjust paths as necessary; using wildcards to concatenate files)
-        orders_df = spark.read.option("header", True).csv("data/Data_cp/orders/*.csv", inferSchema=True)
-        order_items_df = spark.read.option("header", True).csv("data/Data_cp/order_items/*.csv", inferSchema=True)
-        products_df = spark.read.option("header", True).csv("data/Data_cp/products.csv", inferSchema=True)
+        orders_df = spark.read.option("header", True).csv("s3://pipeline-land-bucket-125/land-folder/e-commerce-data/orders/*.csv", inferSchema=True)
+        order_items_df = spark.read.option("header", True).csv("s3://pipeline-land-bucket-125/land-folder/e-commerce-data/order_items/*.csv", inferSchema=True)
+        products_df = spark.read.option("header", True).csv("s3://pipeline-land-bucket-125/land-folder/e-commerce-data/products.csv", inferSchema=True)
         logger.info("Data files loaded successfully.")
     except Exception as e:
         logger.exception("Error loading CSV files: %s", e)
@@ -107,9 +111,9 @@ def main():
 
     try:
         # Make sure the path starts with "cleaned_data/"
-        output_orders_path = "cleaned_data/clean_orders.parquet"
-        output_order_items_path = "cleaned_data/clean_order_items.parquet"
-        output_products_path = "cleaned_data/clean_products.parquet"
+        output_orders_path = "s3://ecs-output-bucket/cleaned_folder/output/clean_orders.parquet"
+        output_order_items_path = "s3://ecs-output-bucket/cleaned_folder/output/clean_order_items.parquet"
+        output_products_path = "s3://ecs-output-bucket/cleaned_folder/output/clean_products.parquet"
 
         logger.info(f"Writing cleaned orders to: {output_orders_path}")
         orders_clean.write.mode("overwrite").parquet(output_orders_path) 
