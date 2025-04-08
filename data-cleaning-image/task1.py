@@ -90,9 +90,9 @@ def main():
 
     try:
         # Read data files (adjust paths as necessary; using wildcards to concatenate files)
-        orders_df = spark.read.option("header", True).csv("s3://pipeline-land-bucket-125/land-folder/e-commerce-data/orders/*.csv", inferSchema=True)
-        order_items_df = spark.read.option("header", True).csv("s3://pipeline-land-bucket-125/land-folder/e-commerce-data/order_items/*.csv", inferSchema=True)
-        products_df = spark.read.option("header", True).csv("s3://pipeline-land-bucket-125/land-folder/e-commerce-data/products.csv", inferSchema=True)
+        orders_df = spark.read.option("header", True).csv("s3a://pipeline-land-bucket-125/land-folder/e-commerce-data/orders/*.csv", inferSchema=True)
+        order_items_df = spark.read.option("header", True).csv("s3a://pipeline-land-bucket-125/land-folder/e-commerce-data/order_items/*.csv", inferSchema=True)
+        products_df = spark.read.option("header", True).csv("s3a://pipeline-land-bucket-125/land-folder/e-commerce-data/products.csv", inferSchema=True)
         logger.info("Data files loaded successfully.")
     except Exception as e:
         logger.exception("Error loading CSV files: %s", e)
@@ -111,9 +111,9 @@ def main():
 
     try:
         # Make sure the path starts with "cleaned_data/"
-        output_orders_path = "s3://ecs-output-bucket/cleaned_folder/output/clean_orders.parquet"
-        output_order_items_path = "s3://ecs-output-bucket/cleaned_folder/output/clean_order_items.parquet"
-        output_products_path = "s3://ecs-output-bucket/cleaned_folder/output/clean_products.parquet"
+        output_orders_path = "s3a://ecs-output-bucket/cleaned_folder/output/clean_orders.parquet"
+        output_order_items_path = "s3a://ecs-output-bucket/cleaned_folder/output/clean_order_items.parquet"
+        output_products_path = "s3a://ecs-output-bucket/cleaned_folder/output/clean_products.parquet"
 
         logger.info(f"Writing cleaned orders to: {output_orders_path}")
         orders_clean.write.mode("overwrite").parquet(output_orders_path) 

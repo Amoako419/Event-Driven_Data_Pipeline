@@ -81,9 +81,9 @@ def main():
 
     try:
         # --- Read input data from Cleaned S3 Bucket ---
-        orders_path = "s3://ecs-output-bucket/cleaned_folder/output/clean_orders.parquet" 
-        order_items_path = "s3://ecs-output-bucket/cleaned_folder/output/clean_order_items.parquet" 
-        products_path = "s3://ecs-output-bucket/cleaned_folder/output/clean_products.parquet" 
+        orders_path = "s3a://ecs-output-bucket/cleaned_folder/output/clean_orders.parquet" 
+        order_items_path = "s3a://ecs-output-bucket/cleaned_folder/output/clean_order_items.parquet" 
+        products_path = "s3a://ecs-output-bucket/cleaned_folder/output/clean_products.parquet" 
 
         logger.info(f"Reading orders data from S3 directory: {orders_path}")
         orders_df = spark.read.parquet(orders_path)
