@@ -4,22 +4,21 @@ import json
 from decimal import Decimal
 import boto3
 from pyspark.sql import SparkSession
+from dotenv import load_dotenv
 from pyspark.sql.functions import (
     col, to_date, sum as _sum, countDistinct, count, when, round
 )
-
+load_dotenv()
+ACCESS_KEY = os.getenv("ACCESS_KEY")
+SECRET_KEY = os.getenv("SECRET_KEY")
+REGION = os.getenv("REGION")
 # Configure logging
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s %(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
 
-# --- DynamoDB Helper Function ---
+
 def write_spark_df_to_dynamodb(spark_df, table_name, region_name):
-    """
-    Helper function to write Spark DataFrame rows to a DynamoDB table.
-    Assumes DataFrame columns match DynamoDB table attributes.
-    Converts floats/doubles to Decimals. Adjust primary key/data type handling as needed.
-    """
     dynamodb = boto3.resource('dynamodb', region_name=region_name)
     table = dynamodb.Table(table_name)
 
@@ -40,11 +39,6 @@ def write_spark_df_to_dynamodb(spark_df, table_name, region_name):
                     # Convert floats/doubles to Decimals for DynamoDB compatibility
                     # Use json dumps/loads trick or manual iteration if structure is complex
                     item_dict = json.loads(json.dumps(item_dict_raw), parse_float=Decimal)
-
-                    # ** Important: Add specific data type conversions if needed **
-                    # e.g., Ensure date/timestamp columns are strings in ISO format
-                    # Ensure primary key(s) are correctly formatted and named
-
                     if item_dict: # Ensure dict is not empty
                       batch.put_item(Item=item_dict)
                       count += 1
@@ -70,9 +64,12 @@ def main():
     try:
         # Initialize Spark session with S3A configuration for IAM role auth
         spark = SparkSession.builder \
-            .appName("KPIComputationECS") \
+            .appName("DataCleaningECS") \
             .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem") \
-            .config("spark.hadoop.fs.s3a.aws.credentials.provider", "com.amazonaws.auth.InstanceProfileCredentialsProvider") \
+            .config("spark.hadoop.fs.s3a.access.key", ACCESS_KEY) \
+            .config("spark.hadoop.fs.s3a.secret.key", SECRET_KEY) \
+            .config("spark.hadoop.fs.s3a.endpoint", "s3.amazonaws.com") \
+            .config("spark.hadoop.fs.s3a.region", "REGION") \
             .getOrCreate()
         logger.info("Spark session started with S3A IAM role configuration.")
     except Exception as e:
@@ -80,10 +77,12 @@ def main():
         return
 
     try:
+        OUTPUT_BUCKET = os.getenv('OUTPUT_BUCKET')
+        OUTPUT_PREFIX = os.getenv('OUTPUT_PREFIX')
         # --- Read input data from Cleaned S3 Bucket ---
-        orders_path = "s3a://ecs-output-bucket/cleaned_folder/output/clean_orders.parquet" 
-        order_items_path = "s3a://ecs-output-bucket/cleaned_folder/output/clean_order_items.parquet" 
-        products_path = "s3a://ecs-output-bucket/cleaned_folder/output/clean_products.parquet" 
+        orders_path = f"s3a://{OUTPUT_BUCKET}/{OUTPUT_PREFIX}clean_orders.parquet/" 
+        order_items_path = "s3a://{OUTPUT_BUCKET}/{OUTPUT_PREFIX}clean_order_items.parquet/" 
+        products_path = "s3a://{OUTPUT_BUCKET}/{OUTPUT_PREFIX}clean_products.parquet/" 
 
         logger.info(f"Reading orders data from S3 directory: {orders_path}")
         orders_df = spark.read.parquet(orders_path)
@@ -112,7 +111,6 @@ def main():
         if spark: spark.stop()
         return
 
-    # --- Compute KPIs (Logic remains similar) ---
     category_kpis_df = None
     order_kpis_df = None
     try:

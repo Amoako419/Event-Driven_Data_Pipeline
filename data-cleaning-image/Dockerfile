@@ -8,9 +8,9 @@ ENV PYSPARK_PYTHON=python3
 ENV JAVA_HOME=/usr/lib/jvm/default-java 
 
 # --- AWS S3 Dependencies ---
-# Choose versions compatible with Hadoop 3.3.x (often used with Spark 3.3.2 hadoop3 profile)
 ENV HADOOP_AWS_VERSION=3.3.1 
 ENV AWS_SDK_VERSION=1.11.901 
+
 
 # Install Java, wget, and clean up
 RUN apt-get update && \
