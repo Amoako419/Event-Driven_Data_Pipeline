@@ -1,11 +1,74 @@
 import logging
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import to_date, col
-
+import boto3
+from botocore.exceptions import NoCredentialsError, ClientError
+from dotenv import load_dotenv
+import os
+# Load environment variables
+    
+load_dotenv()
 # Configure logging
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s %(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
+s3_client = boto3.client(
+    's3',
+    aws_access_key_id=os.getenv("ACCESS_KEY"),
+    aws_secret_access_key=os.getenv("SECRET_KEY"),
+    region_name=os.getenv("REGION")
+)
+ 
+
+# Load environment variables
+ACCESS_KEY = os.getenv("ACCESS_KEY")
+SECRET_KEY = os.getenv("SECRET_KEY")
+REGION = os.getenv("REGION")
+
+def list_s3_files(bucket_name, prefix):
+    """
+    List all files in an S3 bucket under a specific prefix.
+    
+    :param bucket_name: Name of the S3 bucket.
+    :param prefix: The prefix (folder path) to list files from.
+    :return: List of file keys.
+    """
+    try:
+        response = s3_client.list_objects_v2(Bucket=bucket_name, Prefix=prefix)
+        if 'Contents' in response:
+            return [item['Key'] for item in response['Contents']]
+        else:
+            logger.warning(f"No files found in s3://{bucket_name}/{prefix}")
+            return []
+    except NoCredentialsError:
+        logger.error("AWS credentials not found.")
+        return []
+    except ClientError as e:
+        logger.error(f"An error occurred while listing files: {e}")
+        return []
+
+def validate_output_files(bucket_name, prefix):
+    """
+    Validate that output files exist in the specified S3 prefix.
+    
+    :param bucket_name: Name of the S3 bucket.
+    :param prefix: The prefix (folder path) to validate.
+    :return: True if files exist, False otherwise.
+    """
+    try:
+        response = s3_client.list_objects_v2(Bucket=bucket_name, Prefix=prefix)
+        if 'Contents' in response:
+            logger.info(f"Output files validated successfully in s3://{bucket_name}/{prefix}")
+            return True
+        else:
+            logger.warning(f"No output files found in s3://{bucket_name}/{prefix}")
+            return False
+    except NoCredentialsError:
+        logger.error("AWS credentials not found.")
+        return False
+    except ClientError as e:
+        logger.error(f"An error occurred while validating output files: {e}")
+        return False
 
 def clean_orders(orders_df):
     """
@@ -76,23 +139,48 @@ def clean_products(products_df):
     return products_df
 
 def main():
+    spark = None # Initialize spark variable
     try:
+        # Initialize Spark session with S3A configuration for IAM role auth
         spark = SparkSession.builder \
             .appName("DataCleaningECS") \
             .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem") \
-            .config("spark.hadoop.fs.s3a.aws.credentials.provider", "com.amazonaws.auth.InstanceProfileCredentialsProvider") \
+            .config("spark.hadoop.fs.s3a.access.key", ACCESS_KEY) \
+            .config("spark.hadoop.fs.s3a.secret.key", SECRET_KEY) \
+            .config("spark.hadoop.fs.s3a.endpoint", "s3.amazonaws.com") \
+            .config("spark.hadoop.fs.s3a.region", REGION) \
             .getOrCreate()
-
-        logger.info("Spark session created with S3A configuration.")
+        logger.info("Spark session started with S3A IAM role configuration.")
     except Exception as e:
         logger.exception("Error starting Spark session: %s", e)
         return
 
+    # Define S3 bucket and prefixes
+    # Load environment variables
+    load_dotenv()
+    
+    INPUT_BUCKET = os.getenv('INPUT_BUCKET')
+    INPUT_PREFIX_ORDERS = os.getenv('INPUT_PREFIX_ORDERS')
+    INPUT_PREFIX_ORDER_ITEMS = os.getenv('INPUT_PREFIX_ORDER_ITEMS') 
+    INPUT_PREFIX_PRODUCTS = os.getenv('INPUT_PREFIX_PRODUCTS')
+    OUTPUT_BUCKET = os.getenv('OUTPUT_BUCKET')
+    OUTPUT_PREFIX = os.getenv('OUTPUT_PREFIX')
+
+    # List input files using boto3
+    logger.info("Listing input files in S3...")
+    orders_files = list_s3_files(INPUT_BUCKET, INPUT_PREFIX_ORDERS)
+    order_items_files = list_s3_files(INPUT_BUCKET, INPUT_PREFIX_ORDER_ITEMS)
+    products_files = list_s3_files(INPUT_BUCKET, INPUT_PREFIX_PRODUCTS)
+
+    if not (orders_files and order_items_files and products_files):
+        logger.error("One or more input files are missing in S3. Exiting.")
+        return
+
     try:
         # Read data files (adjust paths as necessary; using wildcards to concatenate files)
-        orders_df = spark.read.option("header", True).csv("s3://pipeline-land-bucket-125/land-folder/e-commerce-data/orders/*.csv", inferSchema=True)
-        order_items_df = spark.read.option("header", True).csv("s3://pipeline-land-bucket-125/land-folder/e-commerce-data/order_items/*.csv", inferSchema=True)
-        products_df = spark.read.option("header", True).csv("s3://pipeline-land-bucket-125/land-folder/e-commerce-data/products.csv", inferSchema=True)
+        orders_df = spark.read.option("header", True).csv(f"s3a://{INPUT_BUCKET}/{INPUT_PREFIX_ORDERS}*.csv", inferSchema=True)
+        order_items_df = spark.read.option("header", True).csv(f"s3a://{INPUT_BUCKET}/{INPUT_PREFIX_ORDER_ITEMS}*.csv", inferSchema=True)
+        products_df = spark.read.option("header", True).csv(f"s3a://{INPUT_BUCKET}/{INPUT_PREFIX_PRODUCTS}", inferSchema=True)
         logger.info("Data files loaded successfully.")
     except Exception as e:
         logger.exception("Error loading CSV files: %s", e)
@@ -110,21 +198,26 @@ def main():
         return
 
     try:
-        # Make sure the path starts with "cleaned_data/"
-        output_orders_path = "s3://ecs-output-bucket/cleaned_folder/output/clean_orders.parquet"
-        output_order_items_path = "s3://ecs-output-bucket/cleaned_folder/output/clean_order_items.parquet"
-        output_products_path = "s3://ecs-output-bucket/cleaned_folder/output/clean_products.parquet"
+        # Write cleaned data to S3
+        output_orders_path = f"s3a://{OUTPUT_BUCKET}/{OUTPUT_PREFIX}clean_orders"
+        output_order_items_path = f"s3a://{OUTPUT_BUCKET}/{OUTPUT_PREFIX}clean_order_items"
+        output_products_path = f"s3a://{OUTPUT_BUCKET}/{OUTPUT_PREFIX}clean_products"
 
         logger.info(f"Writing cleaned orders to: {output_orders_path}")
-        orders_clean.write.mode("overwrite").parquet(output_orders_path) 
+        orders_clean.write.mode("overwrite").parquet(output_orders_path)
 
         logger.info(f"Writing cleaned order items to: {output_order_items_path}")
         order_items_clean.write.mode("overwrite").parquet(output_order_items_path)
 
         logger.info(f"Writing cleaned products to: {output_products_path}")
-        products_clean.write.mode("overwrite").parquet(output_products_path) 
+        products_clean.write.mode("overwrite").parquet(output_products_path)
+
+        # Validate output files using boto3
+        validate_output_files(OUTPUT_BUCKET, f"{OUTPUT_PREFIX}clean_orders/")
+        validate_output_files(OUTPUT_BUCKET, f"{OUTPUT_PREFIX}clean_order_items/")
+        validate_output_files(OUTPUT_BUCKET, f"{OUTPUT_PREFIX}clean_products/")
     except Exception as e:
-            logger.exception("Error writing cleaned data: %s", e)
+        logger.exception("Error writing cleaned data: %s", e)
 
     # Stop Spark session
     spark.stop()

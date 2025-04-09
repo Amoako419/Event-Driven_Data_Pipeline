@@ -5,3 +5,4 @@ data
 kpi_results
 .env
 s3
+input.json

@@ -1,283 +1,405 @@
 {
-    "Comment": "ECS Cluster Creation, Task Execution, and Cleanup Workflow",
-    "StartAt": "CreateCluster",
-    "States": {
-      "CreateCluster": {
-        "Type": "Task",
-        "Resource": "arn:aws:states:::aws-sdk:ecs:createCluster",
-        "Parameters": {
-          "clusterName": "MyDataCluster"
-        },
-        "Next": "CreateService",
-        "Catch": [
-          {
-            "ErrorEquals": [
-              "States.ALL"
-            ],
-            "Next": "CleanupOnFailure",
-            "ResultPath": "$.error"
-          }
-        ]
+  "Comment": "Create Cluster, Register TD1, Run Task1, Register TD2, Run Task2, Cleanup",
+  "StartAt": "CreateCluster",
+  "States": {
+    "CreateCluster": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::aws-sdk:ecs:createCluster",
+      "Parameters": {
+        "ClusterName.$": "States.Format('{}-{}', $.baseClusterName, $$.Execution.Id)"
       },
-      "CreateService": {
-        "Type": "Task",
-        "Resource": "arn:aws:states:::aws-sdk:ecs:createService",
-        "Parameters": {
-          "cluster": "MyDataCluster",
-          "serviceName": "MyDataService",
-          "taskDefinition": "MyDataTaskDefinition",
-          "desiredCount": 1,
-          "launchType": "FARGATE",
-          "networkConfiguration": {
-            "awsvpcConfiguration": {
-              "subnets": [
-                "subnet-123456"
-              ],
-              "securityGroups": [
-                "sg-123456"
-              ],
-              "assignPublicIp": "ENABLED"
-            }
-          }
-        },
-        "Next": "CreateTaskSet",
-        "Catch": [
-          {
-            "ErrorEquals": [
-              "States.ALL"
-            ],
-            "Next": "CleanupOnFailure",
-            "ResultPath": "$.error"
-          }
+      "ResultPath": "$.clusterInfo",
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "NotifyGeneralFailure",
+          "ResultPath": "$.errorInfo"
+        }
+      ],
+      "Next": "RegisterTaskDefinition1"
+    },
+    "RegisterTaskDefinition1": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::aws-sdk:ecs:registerTaskDefinition",
+      "Parameters": {
+        "Family.$": "States.Format('{}-task1-{}', $.baseTaskFamilyPrefix, $$.Execution.Id)",
+        "RequiresCompatibilities": [
+          "FARGATE"
         ],
-        "ResultPath": "$.serviceResult"
+        "NetworkMode": "awsvpc",
+        "Cpu.$": "$.taskCpu",
+        "Memory.$": "$.taskMemory",
+        "ExecutionRoleArn.$": "$.taskExecutionRoleArn",
+        "TaskRoleArn.$": "$.taskRoleArn",
+        "ContainerDefinitions.$": "$.containerDefinitionsTask1"
       },
-      "CreateTaskSet": {
-        "Type": "Task",
-        "Resource": "arn:aws:states:::aws-sdk:ecs:createTaskSet",
-        "Parameters": {
-          "cluster": "MyDataCluster",
-          "service": "MyDataService",
-          "taskDefinition": "MyDataTaskDefinition",
-          "networkConfiguration": {
-            "awsvpcConfiguration": {
-              "subnets": [
-                "subnet-123456"
-              ],
-              "securityGroups": [
-                "sg-123456"
-              ],
-              "assignPublicIp": "ENABLED"
+      "ResultPath": "$.taskDefinitionInfoTask1",
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "DeleteClusterOnError",
+          "ResultPath": "$.errorInfo"
+        }
+      ],
+      "Next": "RunTask1"
+    },
+    "RunTask1": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::ecs:runTask.sync",
+      "Parameters": {
+        "LaunchType": "FARGATE",
+        "Cluster.$": "$.clusterInfo.Cluster.ClusterArn",
+        "TaskDefinition.$": "$.taskDefinitionInfoTask1.TaskDefinition.TaskDefinitionArn",
+        "NetworkConfiguration.$": "$.networkConfiguration",
+        "Overrides": {
+          "ContainerOverrides": [
+            {
+              "Name.$": "$.containerDefinitionsTask1[0].Name",
+              "Environment.$": "$.taskEnvironmentOverridesTask1"
             }
-          }
-        },
-        "Next": "StartTask",
-        "Catch": [
-          {
-            "ErrorEquals": [
-              "States.ALL"
-            ],
-            "Next": "CleanupOnFailure",
-            "ResultPath": "$.error"
-          }
-        ],
-        "ResultPath": "$.taskSetResult"
-      },
-      "StartTask": {
-        "Type": "Task",
-        "Resource": "arn:aws:states:::aws-sdk:ecs:runTask",
-        "Parameters": {
-          "cluster": "MyDataCluster",
-          "taskDefinition": "MyDataTaskDefinition",
-          "launchType": "FARGATE",
-          "networkConfiguration": {
-            "awsvpcConfiguration": {
-              "subnets": [
-                "subnet-123456"
-              ],
-              "securityGroups": [
-                "sg-123456"
-              ],
-              "assignPublicIp": "ENABLED"
-            }
-          }
-        },
-        "Next": "WaitForTaskCompletion",
-        "Catch": [
-          {
-            "ErrorEquals": [
-              "States.ALL"
-            ],
-            "Next": "CleanupOnFailure",
-            "ResultPath": "$.error"
-          }
-        ],
-        "ResultPath": "$.runTaskResult"
-      },
-      "WaitForTaskCompletion": {
-        "Type": "Wait",
-        "Seconds": 30,
-        "Next": "CheckTaskStatus"
-      },
-      "CheckTaskStatus": {
-        "Type": "Task",
-        "Resource": "arn:aws:states:::aws-sdk:ecs:describeTasks",
-        "Parameters": {
-          "cluster": "MyDataCluster",
-          "tasks": [
-            "$.runTaskResult.tasks[0].taskArn"
           ]
-        },
-        "Next": "EvaluateTaskResult",
-        "ResultPath": "$.taskStatus"
+        }
       },
-      "EvaluateTaskResult": {
-        "Type": "Choice",
-        "Choices": [
-          {
-            "Variable": "$.taskStatus.tasks[0].lastStatus",
-            "StringEquals": "STOPPED",
-            "Next": "CheckTaskExitCode"
-          },
-          {
-            "Variable": "$.taskStatus.tasks[0].lastStatus",
-            "StringEquals": "RUNNING",
-            "Next": "WaitForTaskCompletion"
-          }
+      "ResultPath": "$.task1Result",
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "CleanupTask1OnError",
+          "ResultPath": "$.errorInfo"
+        }
+      ],
+      "Next": "CheckTask1Result"
+    },
+    "CheckTask1Result": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "And": [
+            {
+              "Variable": "$.task1Result.Tasks[0].LastStatus",
+              "StringEquals": "STOPPED"
+            },
+            {
+              "Variable": "$.task1Result.Tasks[0].Containers[0].ExitCode",
+              "NumericEquals": 0
+            }
+          ],
+          "Next": "RegisterTaskDefinition2"
+        }
+      ],
+      "Default": "NotifyTask1FailureAndCleanup"
+    },
+    "RegisterTaskDefinition2": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::aws-sdk:ecs:registerTaskDefinition",
+      "Parameters": {
+        "Family.$": "States.Format('{}-task2-{}', $.baseTaskFamilyPrefix, $$.Execution.Id)",
+        "RequiresCompatibilities": [
+          "FARGATE"
         ],
-        "Default": "CleanupOnFailure"
+        "NetworkMode": "awsvpc",
+        "Cpu.$": "$.taskCpu",
+        "Memory.$": "$.taskMemory",
+        "ExecutionRoleArn.$": "$.taskExecutionRoleArn",
+        "TaskRoleArn.$": "$.taskRoleArn",
+        "ContainerDefinitions.$": "$.containerDefinitionsTask2"
       },
-      "CheckTaskExitCode": {
-        "Type": "Choice",
-        "Choices": [
-          {
-            "Variable": "$.taskStatus.tasks[0].containers[0].exitCode",
-            "NumericEquals": 0,
-            "Next": "SendSuccessNotification"
-          }
-        ],
-        "Default": "SendFailureNotification"
-      },
-      "SendSuccessNotification": {
-        "Type": "Task",
-        "Resource": "arn:aws:states:::sns:publish",
-        "Parameters": {
-          "TopicArn": "arn:aws:sns:eu-west-1:<ACCOUNT_ID>:MySnsTopic",
-          "Message": "ECS task completed successfully"
-        },
-        "Next": "CleanupResources"
-      },
-      "SendFailureNotification": {
-        "Type": "Task",
-        "Resource": "arn:aws:states:::sns:publish",
-        "Parameters": {
-          "TopicArn": "arn:aws:sns:eu-west-1:<ACCOUNT_ID>:MySnsTopic",
-          "Message": {
-            "Input": "ECS task failed with exit code: $.taskStatus.tasks[0].containers[0].exitCode"
-          }
-        },
-        "Next": "CleanupResources"
-      },
-      "CleanupOnFailure": {
-        "Type": "Task",
-        "Resource": "arn:aws:states:::sns:publish",
-        "Parameters": {
-          "TopicArn": "arn:aws:sns:eu-west-1:<ACCOUNT_ID>:MySnsTopic",
-          "Message": "Error encountered in ECS workflow: $.error.Cause"
-        },
-        "Next": "CleanupResources"
-      },
-      "CleanupResources": {
-        "Type": "Parallel",
-        "Next": "FinalState",
-        "Branches": [
-          {
-            "StartAt": "DeleteTaskSet",
-            "States": {
-              "DeleteTaskSet": {
-                "Type": "Task",
-                "Resource": "arn:aws:states:::aws-sdk:ecs:deleteTaskSet",
-                "Parameters": {
-                  "cluster": "MyDataCluster",
-                  "service": "MyDataService",
-                  "taskSet": "$.taskSetResult.taskSet.id"
-                },
-                "End": true,
-                "Catch": [
-                  {
-                    "ErrorEquals": [
-                      "States.ALL"
-                    ],
-                    "Next": "TaskSetCleanupFailed",
-                    "ResultPath": "$.error"
-                  }
-                ]
-              },
-              "TaskSetCleanupFailed": {
-                "Type": "Pass",
-                "End": true
-              }
+      "ResultPath": "$.taskDefinitionInfoTask2",
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "CleanupTask1OnError",
+          "ResultPath": "$.errorInfo"
+        }
+      ],
+      "Next": "RunTask2"
+    },
+    "RunTask2": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::ecs:runTask.sync",
+      "Parameters": {
+        "LaunchType": "FARGATE",
+        "Cluster.$": "$.clusterInfo.Cluster.ClusterArn",
+        "TaskDefinition.$": "$.taskDefinitionInfoTask2.TaskDefinition.TaskDefinitionArn",
+        "NetworkConfiguration.$": "$.networkConfiguration",
+        "Overrides": {
+          "ContainerOverrides": [
+            {
+              "Name.$": "$.containerDefinitionsTask2[0].Name",
+              "Environment.$": "$.taskEnvironmentOverridesTask2"
             }
-          },
-          {
-            "StartAt": "DeleteService",
-            "States": {
-              "DeleteService": {
-                "Type": "Task",
-                "Resource": "arn:aws:states:::aws-sdk:ecs:deleteService",
-                "Parameters": {
-                  "cluster": "MyDataCluster",
-                  "service": "MyDataService",
-                  "force": true
-                },
-                "End": true,
-                "Catch": [
-                  {
-                    "ErrorEquals": [
-                      "States.ALL"
-                    ],
-                    "Next": "ServiceCleanupFailed",
-                    "ResultPath": "$.error"
-                  }
-                ]
-              },
-              "ServiceCleanupFailed": {
-                "Type": "Pass",
-                "End": true
-              }
+          ]
+        }
+      },
+      "ResultPath": "$.task2Result",
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "CleanupTask2OnError",
+          "ResultPath": "$.errorInfo"
+        }
+      ],
+      "Next": "CheckTask2Result"
+    },
+    "CheckTask2Result": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "And": [
+            {
+              "Variable": "$.task2Result.Tasks[0].LastStatus",
+              "StringEquals": "STOPPED"
+            },
+            {
+              "Variable": "$.task2Result.Tasks[0].Containers[0].ExitCode",
+              "NumericEquals": 0
             }
-          },
-          {
-            "StartAt": "DeleteCluster",
-            "States": {
-              "DeleteCluster": {
-                "Type": "Task",
-                "Resource": "arn:aws:states:::aws-sdk:ecs:deleteCluster",
-                "Parameters": {
-                  "cluster": "MyDataCluster"
-                },
-                "End": true,
-                "Catch": [
-                  {
-                    "ErrorEquals": [
-                      "States.ALL"
-                    ],
-                    "Next": "ClusterCleanupFailed",
-                    "ResultPath": "$.error"
-                  }
-                ]
+          ],
+          "Next": "CleanupSuccessPath"
+        }
+      ],
+      "Default": "NotifyTask2FailureAndCleanup"
+    },
+    "CleanupSuccessPath": {
+      "Type": "Parallel",
+      "Comment": "Deregister TD1 and TD2 in parallel after full success",
+      "Branches": [
+        {
+          "StartAt": "DeregisterTaskDefinition1Success",
+          "States": {
+            "DeregisterTaskDefinition1Success": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::aws-sdk:ecs:deregisterTaskDefinition",
+              "Parameters": {
+                "TaskDefinition.$": "$.taskDefinitionInfoTask1.TaskDefinition.TaskDefinitionArn"
               },
-              "ClusterCleanupFailed": {
-                "Type": "Pass",
-                "End": true
-              }
+              "Catch": [
+                {
+                  "ErrorEquals": [
+                    "States.ALL"
+                  ],
+                  "Comment": "Ignore Error",
+                  "Next": "CleanupBranchPass1"
+                }
+              ],
+              "Next": "CleanupBranchPass1"
+            },
+            "CleanupBranchPass1": {
+              "Type": "Pass",
+              "End": true
             }
           }
-        ]
+        },
+        {
+          "StartAt": "DeregisterTaskDefinition2Success",
+          "States": {
+            "DeregisterTaskDefinition2Success": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::aws-sdk:ecs:deregisterTaskDefinition",
+              "Parameters": {
+                "TaskDefinition.$": "$.taskDefinitionInfoTask2.TaskDefinition.TaskDefinitionArn"
+              },
+              "Catch": [
+                {
+                  "ErrorEquals": [
+                    "States.ALL"
+                  ],
+                  "Comment": "Ignore Error",
+                  "Next": "CleanupBranchPass2"
+                }
+              ],
+              "Next": "CleanupBranchPass2"
+            },
+            "CleanupBranchPass2": {
+              "Type": "Pass",
+              "End": true
+            }
+          }
+        }
+      ],
+      "ResultPath": null,
+      "Next": "DeleteClusterSuccessPath"
+    },
+    "DeleteClusterSuccessPath": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::aws-sdk:ecs:deleteCluster",
+      "Parameters": {
+        "Cluster.$": "$.clusterInfo.Cluster.ClusterArn"
       },
-      "FinalState": {
-        "Type": "Pass",
-        "End": true
-      }
+      "ResultPath": null,
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "NotifyCleanupFailure",
+          "ResultPath": "$.errorInfo"
+        }
+      ],
+      "Next": "NotifySuccess"
+    },
+    "NotifySuccess": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sns:publish",
+      "Parameters": {
+        "Message": {
+          "status": "SUCCESS",
+          "cause": "ECS ephemeral workflow completed successfully.",
+          "executionName.$": "$$.Execution.Name"
+        },
+        "TopicArn": "arn:aws:sns:eu-west-1:405894843300:etl"
+      },
+      "End": true
+    },
+    "NotifyTask1FailureAndCleanup": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sns:publish",
+      "Parameters": {
+        "Message": {
+          "status": "FAILED",
+          "cause": "ECS Task execution failed.",
+          "executionName.$": "$$.Execution.Name",
+          "taskResult.$": "$.taskResult"
+        },
+        "TopicArn": "arn:aws:sns:eu-west-1:405894843300:etl"
+      },
+      "Next": "CleanupTask1OnError"
+    },
+    "NotifyTask2FailureAndCleanup": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sns:publish",
+      "Parameters": {
+        "Message": {
+          "status": "FAILED",
+          "cause": "ECS Task execution failed.",
+          "executionName.$": "$$.Execution.Name",
+          "taskResult.$": "$.taskResult"
+        },
+        "TopicArn": "arn:aws:sns:eu-west-1:405894843300:etl"
+      },
+      "Next": "CleanupTask2OnError"
+    },
+    "CleanupTask1OnError": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::aws-sdk:ecs:deregisterTaskDefinition",
+      "Parameters": {
+        "TaskDefinition.$": "$.taskDefinitionInfoTask1.TaskDefinition.TaskDefinitionArn"
+      },
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Comment": "Ignore Error",
+          "Next": "DeleteClusterOnError"
+        }
+      ],
+      "Next": "DeleteClusterOnError"
+    },
+    "CleanupTask2OnError": {
+      "Type": "Parallel",
+      "Branches": [
+        {
+          "StartAt": "DeregisterTaskDefinition1OnError",
+          "States": {
+            "DeregisterTaskDefinition1OnError": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::aws-sdk:ecs:deregisterTaskDefinition",
+              "Parameters": {
+                "TaskDefinition.$": "$.taskDefinitionInfoTask1.TaskDefinition.TaskDefinitionArn"
+              },
+              "Catch": [
+                {
+                  "ErrorEquals": [
+                    "States.ALL"
+                  ],
+                  "Comment": "Ignore Error",
+                  "Next": "CleanupBranchPass3"
+                }
+              ],
+              "Next": "CleanupBranchPass3"
+            },
+            "CleanupBranchPass3": {
+              "Type": "Pass",
+              "End": true
+            }
+          }
+        },
+        {
+          "StartAt": "DeregisterTaskDefinition2OnError",
+          "States": {
+            "DeregisterTaskDefinition2OnError": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::aws-sdk:ecs:deregisterTaskDefinition",
+              "Parameters": {
+                "TaskDefinition.$": "$.taskDefinitionInfoTask2.TaskDefinition.TaskDefinitionArn"
+              },
+              "Catch": [
+                {
+                  "ErrorEquals": [
+                    "States.ALL"
+                  ],
+                  "Comment": "Ignore Error",
+                  "Next": "CleanupBranchPass4"
+                }
+              ],
+              "Next": "CleanupBranchPass4"
+            },
+            "CleanupBranchPass4": {
+              "Type": "Pass",
+              "End": true
+            }
+          }
+        }
+      ],
+      "ResultPath": null,
+      "Next": "DeleteClusterOnError"
+    },
+    "DeleteClusterOnError": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::aws-sdk:ecs:deleteCluster",
+      "Parameters": {
+        "Cluster.$": "$.clusterInfo.Cluster.ClusterArn"
+      },
+      "Comment": "Ignore Error",
+      "Next": "NotifyGeneralFailure"
+    },
+    "NotifyGeneralFailure": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sns:publish",
+      "Parameters": {
+        "TopicArn": "arn:aws:sns:eu-west-1:405894843300:etl",
+        "Message.$": "$"
+      },
+      "Next": "WorkflowFailed"
+    },
+    "NotifyCleanupFailure": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sns:publish",
+      "Parameters": {
+        "Message": {
+          "status": "WARNING",
+          "cause": "ECS ephemeral workflow completed task, but cleanup failed.",
+          "executionName.$": "$$.Execution.Name",
+          "errorInfo.$": "$.errorInfo"
+        },
+        "TopicArn": "arn:aws:sns:eu-west-1:405894843300:etl"
+      },
+      "End": true
+    },
+    "WorkflowFailed": {
+      "Type": "Fail",
+      "Comment": "Workflow failed"
     }
   }
+}
