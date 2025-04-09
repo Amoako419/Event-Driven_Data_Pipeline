@@ -6,6 +6,7 @@ import boto3
 from pyspark.sql import SparkSession
 from dotenv import load_dotenv
 import datetime
+import hashlib
 from pyspark.sql.functions import (
     col, to_date, sum as _sum, countDistinct, count, when, round
 )
@@ -25,49 +26,143 @@ logging.basicConfig(level=logging.INFO,
 logger = logging.getLogger(__name__)
 
 
-def write_spark_df_to_dynamodb(spark_df, table_name):
+def write_category_kpis_to_dynamodb(spark_df, table_name):
+    """
+    Write Category KPIs to DynamoDB using put_item for reliability
+    
+    :param spark_df: Spark DataFrame containing category KPIs
+    :param table_name: DynamoDB table name
+    """
     dynamodb = session.resource('dynamodb')
     table = dynamodb.Table(table_name)
-    logger.info(f"Starting write to DynamoDB table: {table_name} in region ")
-    
+    logger.info(f"Starting write of category KPIs to DynamoDB table: {table_name}")
+
+    # Coalesce to fewer partitions to improve performance
+    num_partitions = 5  
+    logger.info(f"Coalescing DataFrame to {num_partitions} partition(s)")
+    spark_df = spark_df.coalesce(num_partitions)
+
     def process_partition(iterator):
         # Create boto3 resource per partition for efficiency
         dynamodb_partition = session.resource('dynamodb')
         table_partition = dynamodb_partition.Table(table_name)
-        
+
         # Custom JSON encoder to handle date objects
         class DateEncoder(json.JSONEncoder):
             def default(self, obj):
                 if isinstance(obj, (datetime.date, datetime.datetime)):
                     return obj.isoformat()
                 return super().default(obj)
+
+        items_processed = 0
+        successful_items = 0
         
-        with table_partition.batch_writer() as batch:
-            count = 0
-            for row in iterator:
-                try:
-                    item_dict_raw = row.asDict(recursive=True)
-                    # Use the custom encoder to handle date objects
-                    item_json = json.dumps(item_dict_raw, cls=DateEncoder)
-                    item_dict = json.loads(item_json, parse_float=Decimal)
+        for row in iterator:
+            items_processed += 1
+            try:
+                # Convert row to dictionary
+                item_dict_raw = row.asDict(recursive=True)
+                
+                # Ensure both category and order_date exist
+                if 'category' not in item_dict_raw or 'order_date' not in item_dict_raw:
+                    logger.warning(f"Skipping row missing required fields: {row}")
+                    continue
+                
+                # Create a unique ID for each category+date combination
+                category = item_dict_raw['category']
+                order_date = item_dict_raw['order_date']
+                
+                # Use the custom encoder to handle date objects
+                item_json = json.dumps(item_dict_raw, cls=DateEncoder)
+                item_dict = json.loads(item_json, parse_float=Decimal)
+                
+                # Use put_item instead of update_item for more reliability
+                table_partition.put_item(Item=item_dict)
+                successful_items += 1
+                
+                # Log progress periodically
+                if successful_items % 10 == 0:
+                    logger.info(f"Successfully processed {successful_items} items")
                     
-                    if item_dict:  # Ensure dict is not empty
-                        batch.put_item(Item=item_dict)
-                        count += 1
-                    else:
-                        logger.warning("Skipping empty item_dict conversion.")
-
-                except Exception as part_err:
-                    logger.error(f"Error processing row for {table_name}: {row}. Error: {part_err}", exc_info=True)
-
-            logger.info(f"Wrote {count} items from partition to {table_name}")
+            except Exception as e:
+                logger.error(f"Error processing row for {table_name}, category: {item_dict_raw.get('category', 'unknown')}, "
+                              f"date: {item_dict_raw.get('order_date', 'unknown')}: {e}")
+        
+        logger.info(f"Partition complete: Processed {items_processed} items, successfully wrote {successful_items} items")
 
     try:
         spark_df.rdd.foreachPartition(process_partition)
         logger.info(f"Finished writing to DynamoDB table: {table_name}")
     except Exception as write_err:
-        logger.error(f"Error during foreachPartition write to {table_name}", exc_info=True)
-        raise write_err  # Re-raise the exception to signal failure
+        logger.error(f"Error during foreachPartition write to {table_name}: {write_err}", exc_info=True)
+        raise
+    
+
+def write_order_kpis_to_dynamodb(spark_df, table_name):
+    """
+    Write Order KPIs to DynamoDB using put_item for reliability
+    
+    :param spark_df: Spark DataFrame containing order KPIs
+    :param table_name: DynamoDB table name
+    """
+    dynamodb = session.resource('dynamodb')
+    table = dynamodb.Table(table_name)
+    logger.info(f"Starting write of order KPIs to DynamoDB table: {table_name}")
+
+    # Coalesce to fewer partitions to improve performance
+    num_partitions = 5  
+    logger.info(f"Coalescing DataFrame to {num_partitions} partition(s)")
+    spark_df = spark_df.coalesce(num_partitions)
+
+    def process_partition(iterator):
+        # Create boto3 resource per partition for efficiency
+        dynamodb_partition = session.resource('dynamodb')
+        table_partition = dynamodb_partition.Table(table_name)
+
+        # Custom JSON encoder to handle date objects
+        class DateEncoder(json.JSONEncoder):
+            def default(self, obj):
+                if isinstance(obj, (datetime.date, datetime.datetime)):
+                    return obj.isoformat()
+                return super().default(obj)
+
+        items_processed = 0
+        successful_items = 0
+        
+        for row in iterator:
+            items_processed += 1
+            try:
+                # Convert row to dictionary
+                item_dict_raw = row.asDict(recursive=True)
+                
+                # Ensure order_date exists
+                if 'order_date' not in item_dict_raw:
+                    logger.warning(f"Skipping row missing order_date: {row}")
+                    continue
+                
+                # Use the custom encoder to handle date objects
+                item_json = json.dumps(item_dict_raw, cls=DateEncoder)
+                item_dict = json.loads(item_json, parse_float=Decimal)
+                
+                # Use put_item instead of update_item for more reliability
+                table_partition.put_item(Item=item_dict)
+                successful_items += 1
+                
+                # Log progress periodically
+                if successful_items % 10 == 0:
+                    logger.info(f"Successfully processed {successful_items} items")
+                    
+            except Exception as e:
+                logger.error(f"Error processing row for {table_name}, date: {item_dict_raw.get('order_date', 'unknown')}: {e}")
+        
+        logger.info(f"Partition complete: Processed {items_processed} items, successfully wrote {successful_items} items")
+
+    try:
+        spark_df.rdd.foreachPartition(process_partition)
+        logger.info(f"Finished writing to DynamoDB table: {table_name}")
+    except Exception as write_err:
+        logger.error(f"Error during foreachPartition write to {table_name}: {write_err}", exc_info=True)
+        raise
 
 # --- Main Function ---
 def main():
@@ -131,7 +226,7 @@ def main():
             .join(orders_df.select("order_id", "order_date"), on="order_id")
             .join(products_df.select(col("id").alias("product_id"), "category"), on="product_id")
             .withColumn("is_returned", when(col("status") == "returned", 1).otherwise(0))
-         )
+        )
         logger.info("Data joined for category-level KPIs.")
 
         # Compute Category-Level KPIs
@@ -148,6 +243,7 @@ def main():
 
     except Exception as e:
         logger.exception("Error computing category-level KPIs: %s", e)
+        
     try:
         joined_order_df = (
              order_items_df.alias("oi")
@@ -162,7 +258,6 @@ def main():
              )
          )
         logger.info("Data joined for order-level KPIs.")
-
 
         # Compute Order-Level KPIs
         order_kpis_df = (
@@ -181,19 +276,17 @@ def main():
     except Exception as e:
         logger.exception("Error computing order-level KPIs: %s", e)
     
-
     # --- Write KPI Results to DynamoDB ---
     try:
         if category_kpis_df is not None:
-            write_spark_df_to_dynamodb(category_kpis_df, table_name = "category_kpi_table")
+            write_category_kpis_to_dynamodb(category_kpis_df, table_name="category_kpi_table")
         else:
             logger.warning("Category KPIs DataFrame is None, skipping DynamoDB write.")
-
+        
         if order_kpis_df is not None:
-            write_spark_df_to_dynamodb(order_kpis_df, table_name = "order_kpi_table")
+            write_order_kpis_to_dynamodb(order_kpis_df, table_name="order_kpi_table")
         else:
             logger.warning("Order KPIs DataFrame is None, skipping DynamoDB write.")
-
     except Exception as e:
         logger.exception("Error writing KPIs to DynamoDB: %s", e)
 
