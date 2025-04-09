@@ -22,11 +22,8 @@ s3_client = boto3.client(
 
 # Load environment variables
 ACCESS_KEY = os.getenv("ACCESS_KEY")
-print(ACCESS_KEY)
 SECRET_KEY = os.getenv("SECRET_KEY")
-print(SECRET_KEY)
 REGION = os.getenv("REGION")
-print(REGION)
 
 def list_s3_files(bucket_name, prefix):
     """
@@ -202,9 +199,9 @@ def main():
 
     try:
         # Write cleaned data to S3
-        output_orders_path = f"s3a://{OUTPUT_BUCKET}/{OUTPUT_PREFIX}/clean_orders.parquet"
-        output_order_items_path = f"s3a://{OUTPUT_BUCKET}/{OUTPUT_PREFIX}/clean_order_items.parquet"
-        output_products_path = f"s3a://{OUTPUT_BUCKET}/{OUTPUT_PREFIX}/clean_products.parquet"
+        output_orders_path = f"s3a://{OUTPUT_BUCKET}/{OUTPUT_PREFIX}clean_orders"
+        output_order_items_path = f"s3a://{OUTPUT_BUCKET}/{OUTPUT_PREFIX}clean_order_items"
+        output_products_path = f"s3a://{OUTPUT_BUCKET}/{OUTPUT_PREFIX}clean_products"
 
         logger.info(f"Writing cleaned orders to: {output_orders_path}")
         orders_clean.write.mode("overwrite").parquet(output_orders_path)
@@ -216,9 +213,9 @@ def main():
         products_clean.write.mode("overwrite").parquet(output_products_path)
 
         # Validate output files using boto3
-        validate_output_files(OUTPUT_BUCKET, f"{OUTPUT_PREFIX}/clean_orders.parquet/")
-        validate_output_files(OUTPUT_BUCKET, f"{OUTPUT_PREFIX}/clean_order_items.parquet/")
-        validate_output_files(OUTPUT_BUCKET, f"{OUTPUT_PREFIX}/clean_products.parquet/")
+        validate_output_files(OUTPUT_BUCKET, f"{OUTPUT_PREFIX}clean_orders/")
+        validate_output_files(OUTPUT_BUCKET, f"{OUTPUT_PREFIX}clean_order_items/")
+        validate_output_files(OUTPUT_BUCKET, f"{OUTPUT_PREFIX}clean_products/")
     except Exception as e:
         logger.exception("Error writing cleaned data: %s", e)
 
