@@ -16,10 +16,11 @@
 5. [KPIs Computed](#kpis-computed)
    - [Category-Level KPIs](#category-level-kpis)
    - [Order-Level KPIs](#order-level-kpis)
-6. [Setup Instructions](#setup-instructions)
-7. [Error Handling](#error-handling)
-8. [Monitoring & Alerts](#monitoring--alerts)
-9. [Future Enhancements](#future-enhancements)
+6. [Step Function Workflow](#step-function-workflow)
+7. [Setup Instructions](#setup-instructions)
+8. [Error Handling](#error-handling)
+9. [Monitoring & Alerts](#monitoring--alerts)
+10. [Future Enhancements](#future-enhancements)
 
 ---
 
@@ -269,6 +270,29 @@ The AWS Step Function orchestrates the entire pipeline workflow, ensuring seamle
   - Generate alerts for pipeline failures or delays.
 - **Log Analysis**:
   - Use CloudWatch Logs Insights to analyze task execution logs.
+
+
+---
+## Future Enhancements
+
+1. **Scalability**:
+   - Implement auto-scaling for ECS tasks based on workload.
+2. **Data Lake Integration**:
+   - Store historical data in an Amazon S3-based data lake for batch analytics.
+3. **Advanced Analytics**:
+   - Integrate Amazon Redshift or Athena for complex queries.
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
