@@ -42,8 +42,13 @@ The architecture is designed to handle end-to-end processing of incoming data fi
    - **Transformation Task**: Computes KPIs and writes results to DynamoDB.
 4. **Storage**: Cleaned data is stored in a separate S3 bucket, and computed KPIs are written to DynamoDB tables.
 5. **Logging & Monitoring**: CloudWatch Logs track task execution and provide error alerts.
+6. **Dashboarding**: Amazon QuickSight for real-time visualization of KPIs and operational metrics, including:
+    - Interactive dashboards for business users
+    - Custom visualizations for trend analysis
 
-![Architecture Diagram](https://via.placeholder.com/800x400) 
+<p align="center">
+    <img src="images/architecture.jpg" alt="The architecture diagram" width="100%" />
+</p>
 
 ---
 
@@ -192,10 +197,9 @@ These KPIs summarize the overall performance of orders placed on the platform on
    - Store historical data in an Amazon S3-based data lake for batch analytics.
 3. **Advanced Analytics**:
    - Integrate Amazon Redshift or Athena for complex queries.
-4. **Dashboard**:
-   - Build a real-time dashboard using Amazon QuickSight to visualize KPIs.
 
----
+
+
 
 
 
