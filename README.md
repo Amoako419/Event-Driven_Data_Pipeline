@@ -1,5 +1,3 @@
-
-
 # Real-Time Event-Driven Data Pipeline for an E-Commerce Shop
 
 ## Table of Contents

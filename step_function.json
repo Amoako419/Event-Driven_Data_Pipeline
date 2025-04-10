@@ -6,7 +6,7 @@
       "Type": "Task",
       "Resource": "arn:aws:states:::aws-sdk:ecs:createCluster",
       "Parameters": {
-        "ClusterName.$": "States.Format('{}-{}', $.baseClusterName, $$.Execution.Name)"
+        "ClusterName": "ecs-ephemeral-cluster-123456"
       },
       "ResultPath": "$.clusterInfo",
       "Catch": [
@@ -24,7 +24,7 @@
       "Type": "Task",
       "Resource": "arn:aws:states:::aws-sdk:ecs:registerTaskDefinition",
       "Parameters": {
-        "Family.$": "States.Format('{}-clean-task-{}', $.baseTaskFamilyPrefix, $$.Execution.Name)",
+        "Family": "ecs-pipeline-clean-task-123456",
         "RequiresCompatibilities": [
           "FARGATE"
         ],
@@ -66,8 +66,8 @@
       "Resource": "arn:aws:states:::ecs:runTask.sync",
       "Parameters": {
         "LaunchType": "FARGATE",
-        "Cluster.$": "$.clusterInfo.Cluster.ClusterArn",
-        "TaskDefinition.$": "$.taskDefinitionInfoTask1.TaskDefinition.TaskDefinitionArn",
+        "Cluster": "arn:aws:ecs:eu-west-1:405894843300:cluster/ecs-ephemeral-cluster-123456",
+        "TaskDefinition": "arn:aws:ecs:eu-west-1:405894843300:task-definition/ecs-pipeline-clean-task-123456:1",
         "NetworkConfiguration": {
           "AwsvpcConfiguration": {
             "Subnets": [
@@ -126,7 +126,7 @@
       "Type": "Task",
       "Resource": "arn:aws:states:::aws-sdk:ecs:registerTaskDefinition",
       "Parameters": {
-        "Family.$": "States.Format('{}-kpis-task-{}', $.baseTaskFamilyPrefix, $$.Execution.Name)",
+        "Family": "ecs-pipeline-kpis-task-123456",
         "RequiresCompatibilities": [
           "FARGATE"
         ],
@@ -168,8 +168,8 @@
       "Resource": "arn:aws:states:::ecs:runTask.sync",
       "Parameters": {
         "LaunchType": "FARGATE",
-        "Cluster.$": "$.clusterInfo.Cluster.ClusterArn",
-        "TaskDefinition.$": "$.taskDefinitionInfoTask2.TaskDefinition.TaskDefinitionArn",
+        "Cluster": "arn:aws:ecs:eu-west-1:405894843300:cluster/ecs-ephemeral-cluster-123456",
+        "TaskDefinition": "arn:aws:ecs:eu-west-1:405894843300:task-definition/ecs-pipeline-kpis-task-123456:1",
         "NetworkConfiguration": {
           "AwsvpcConfiguration": {
             "Subnets": [
@@ -239,7 +239,7 @@
               "Type": "Task",
               "Resource": "arn:aws:states:::aws-sdk:ecs:deregisterTaskDefinition",
               "Parameters": {
-                "TaskDefinition.$": "$.taskDefinitionInfoTask1.TaskDefinition.TaskDefinitionArn"
+                "TaskDefinition": "arn:aws:ecs:eu-west-1:405894843300:task-definition/ecs-pipeline-clean-task-123456:1"
               },
               "Catch": [
                 {
@@ -266,7 +266,7 @@
               "Type": "Task",
               "Resource": "arn:aws:states:::aws-sdk:ecs:deregisterTaskDefinition",
               "Parameters": {
-                "TaskDefinition.$": "$.taskDefinitionInfoTask2.TaskDefinition.TaskDefinitionArn"
+                "TaskDefinition": "arn:aws:ecs:eu-west-1:405894843300:task-definition/ecs-pipeline-kpis-task-123456:1"
               },
               "Catch": [
                 {
@@ -294,7 +294,7 @@
       "Type": "Task",
       "Resource": "arn:aws:states:::aws-sdk:ecs:deleteCluster",
       "Parameters": {
-        "Cluster.$": "$.clusterInfo.Cluster.ClusterArn"
+        "Cluster": "arn:aws:ecs:eu-west-1:405894843300:cluster/ecs-ephemeral-cluster-123456"
       },
       "ResultPath": "$.clusterDeleteResult",
       "Catch": [
@@ -314,7 +314,7 @@
       "Parameters": {
         "TopicArn": "arn:aws:sns:eu-west-1:405894843300:etl",
         "Subject": "Step Function SUCCESS",
-        "Message.$": "States.Format('ECS ephemeral workflow completed successfully.\nExecution Name: {}', $$.Execution.Name)"
+        "Message": "ECS ephemeral workflow completed successfully.\nExecution Name: ecs-pipeline-execution-123456"
       },
       "End": true
     },
@@ -322,7 +322,7 @@
       "Type": "Task",
       "Resource": "arn:aws:states:::aws-sdk:ecs:deregisterTaskDefinition",
       "Parameters": {
-        "TaskDefinition.$": "$.taskDefinitionInfoTask1.TaskDefinition.TaskDefinitionArn"
+        "TaskDefinition": "arn:aws:ecs:eu-west-1:405894843300:task-definition/ecs-pipeline-clean-task-123456:1"
       },
       "ResultPath": "$.td1DeregisterResult",
       "Catch": [
@@ -342,8 +342,8 @@
       "Resource": "arn:aws:states:::sns:publish",
       "Parameters": {
         "TopicArn": "arn:aws:sns:eu-west-1:405894843300:etl",
-        "Subject.$": "States.Format('Step Function FAILURE: {}', $$.Execution.Name)",
-        "Message.$": "States.Format('Execution failed!\nName: {}\nError: {}\nCause: {}', $$.Execution.Name, $.errorInfo.Error, $.errorInfo.Cause)"
+        "Subject": "Step Function FAILURE: ecs-pipeline-execution-123456",
+        "Message": "Execution failed!\nName: ecs-pipeline-execution-123456\nError: SomeErrorType\nCause: Error details would be here"
       },
       "Next": "WorkflowFailed"
     },
@@ -353,7 +353,7 @@
       "Parameters": {
         "TopicArn": "arn:aws:sns:eu-west-1:405894843300:etl",
         "Subject": "Cleanup Failure",
-        "Message.$": "States.Format('Failed to cleanup resources for execution: {}\nError details available in execution history', $$.Execution.Name)"
+        "Message": "Failed to cleanup resources for execution: ecs-pipeline-execution-123456\nError details available in execution history"
       },
       "End": true
     },
