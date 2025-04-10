@@ -137,6 +137,9 @@ These KPIs summarize the overall performance of orders placed on the platform on
 ## Step Function Workflow
 
 The AWS Step Function orchestrates the entire pipeline workflow, ensuring seamless execution of tasks while handling errors and cleanup. Below is a breakdown of each step in the state machine:
+<p align="center">
+    <img src="images/stepfunctions.svg" alt="The architecture diagram" width="100%" />
+</p>
 
 ### 1. **CreateCluster**
 - **Purpose**: Creates an ECS cluster to run the tasks.
@@ -212,8 +215,28 @@ The AWS Step Function orchestrates the entire pipeline workflow, ensuring seamle
 - **WorkflowFailed**:
   - Marks the workflow as failed and terminates execution.
 
+## Step Function Executed
+
+The step function workflow executes each task sequentially and ensures proper cleanup of resources. Below is an example of a successful execution:
+
+| Step | Status | Duration |
+|------|--------|----------|
+| CreateCluster | ✅ Succeeded | 15s |
+| RegisterTaskDefinition1 | ✅ Succeeded | 2s |
+| RunTask1 | ✅ Succeeded | 45s |
+| ExtractTask1Status | ✅ Succeeded | 1s |
+| RegisterTaskDefinition2 | ✅ Succeeded | 2s |
+| RunTask2 | ✅ Succeeded | 38s |
+| ExtractTask2Status | ✅ Succeeded | 1s |
+| CleanupBothTaskDefinitions | ✅ Succeeded | 3s |
+| DeleteCluster | ✅ Succeeded | 10s |
+| NotifySuccess | ✅ Succeeded | 1s |
+
+Total execution time: ~2 minutes
+
+The workflow maintains idempotency and ensures all resources are properly cleaned up, even in failure scenarios.
 <p align="center">
-    <img src="images/stepfunctions.svg" alt="The architecture diagram" width="100%" />
+    <img src="images/executed.svg" alt="The architecture diagram" width="100%" />
 </p>
 
 ---
