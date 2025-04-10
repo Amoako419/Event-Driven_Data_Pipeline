@@ -133,9 +133,6 @@ These KPIs summarize the overall performance of orders placed on the platform on
 | `unique_customers`    | Number of distinct customers who placed orders.                                |
 
 ---
-<p align="center">
-    <img src="images/stepfunctions.svg" alt="The architecture diagram" width="100%" />
-</p>
 
 ## Step Function Workflow
 
@@ -215,6 +212,9 @@ The AWS Step Function orchestrates the entire pipeline workflow, ensuring seamle
 - **WorkflowFailed**:
   - Marks the workflow as failed and terminates execution.
 
+<p align="center">
+    <img src="images/stepfunctions.svg" alt="The architecture diagram" width="100%" />
+</p>
 
 ---
 ## Setup Instructions
