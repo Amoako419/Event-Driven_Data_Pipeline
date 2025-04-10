@@ -132,7 +132,90 @@ These KPIs summarize the overall performance of orders placed on the platform on
 | `unique_customers`    | Number of distinct customers who placed orders.                                |
 
 ---
+<p align="center">
+    <img src="images/stepfunctions.svg" alt="The architecture diagram" width="100%" />
+</p>
 
+## Step Function Workflow
+
+The AWS Step Function orchestrates the entire pipeline workflow, ensuring seamless execution of tasks while handling errors and cleanup. Below is a breakdown of each step in the state machine:
+
+### 1. **CreateCluster**
+- **Purpose**: Creates an ECS cluster to run the tasks.
+- **Details**:
+  - Creates a temporary ECS cluster named `ecs-ephemeral-cluster-123456`.
+  - If the cluster creation fails, it transitions to `NotifyGeneralFailure`.
+
+### 2. **RegisterTaskDefinition1**
+- **Purpose**: Registers the task definition for the **Validation Task**.
+- **Details**:
+  - Registers a task definition (`ecs-pipeline-clean-task-123456`) for the first ECS task.
+  - Configures the container with the necessary image, CPU, memory, and IAM roles.
+  - If registration fails, it transitions to `DeleteCluster` for cleanup.
+
+### 3. **RunTask1**
+- **Purpose**: Executes the **Validation Task**.
+- **Details**:
+  - Runs the validation task on Fargate using the registered task definition.
+  - Passes environment variables such as `LANDING_S3_BUCKET_URI` and `CLEANED_S3_BUCKET_URI` to the container.
+  - If the task fails, it transitions to `DeregisterTaskDefinition1` for cleanup.
+
+### 4. **ExtractTask1Status**
+- **Purpose**: Extracts the success status of **Task1**.
+- **Details**:
+  - Marks **Task1** as successful and proceeds to register the second task definition.
+
+### 5. **RegisterTaskDefinition2**
+- **Purpose**: Registers the task definition for the **Transformation Task**.
+- **Details**:
+  - Registers a task definition (`ecs-pipeline-kpis-task-123456`) for the second ECS task.
+  - Configures the container with the necessary image, CPU, memory, and IAM roles.
+  - If registration fails, it transitions to `DeregisterTaskDefinition1` for cleanup.
+
+### 6. **RunTask2**
+- **Purpose**: Executes the **Transformation Task**.
+- **Details**:
+  - Runs the transformation task on Fargate using the registered task definition.
+  - Passes environment variables such as `CLEANED_S3_BUCKET_URI`, `CATEGORY_KPI_DYNAMODB_TABLE`, and `ORDER_KPI_DYNAMODB_TABLE` to the container.
+  - If the task fails, it transitions to `CleanupBothTaskDefinitions` for cleanup.
+
+### 7. **ExtractTask2Status**
+- **Purpose**: Extracts the success status of **Task2**.
+- **Details**:
+  - Marks **Task2** as successful and proceeds to clean up both task definitions.
+
+### 8. **CleanupBothTaskDefinitions**
+- **Purpose**: Deregisters both task definitions in parallel.
+- **Details**:
+  - Deregisters `ecs-pipeline-clean-task-123456` and `ecs-pipeline-kpis-task-123456` in parallel.
+  - Ignores errors during deregistration and proceeds to delete the ECS cluster.
+
+### 9. **DeleteCluster**
+- **Purpose**: Deletes the temporary ECS cluster.
+- **Details**:
+  - Deletes the ECS cluster created at the beginning of the workflow.
+  - If deletion fails, it transitions to `NotifyCleanupFailure`.
+
+### 10. **NotifySuccess**
+- **Purpose**: Notifies stakeholders of a successful execution.
+- **Details**:
+  - Sends an SNS notification with the subject "Step Function SUCCESS" and details of the execution.
+  - Ends the workflow successfully.
+
+### Error Handling States
+- **NotifyGeneralFailure**:
+  - Sends an SNS notification with the subject "Step Function FAILURE" if any step fails.
+  - Transitions to `WorkflowFailed` to terminate the workflow.
+
+- **NotifyCleanupFailure**:
+  - Sends an SNS notification with the subject "Cleanup Failure" if resource cleanup fails.
+  - Ends the workflow without further action.
+
+- **WorkflowFailed**:
+  - Marks the workflow as failed and terminates execution.
+
+
+---
 ## Setup Instructions
 
 ### Prerequisites
@@ -186,24 +269,6 @@ These KPIs summarize the overall performance of orders placed on the platform on
   - Generate alerts for pipeline failures or delays.
 - **Log Analysis**:
   - Use CloudWatch Logs Insights to analyze task execution logs.
-
-
----
-## Future Enhancements
-
-1. **Scalability**:
-   - Implement auto-scaling for ECS tasks based on workload.
-2. **Data Lake Integration**:
-   - Store historical data in an Amazon S3-based data lake for batch analytics.
-3. **Advanced Analytics**:
-   - Integrate Amazon Redshift or Athena for complex queries.
-
-
-
-
-
-
-
 
 
 
