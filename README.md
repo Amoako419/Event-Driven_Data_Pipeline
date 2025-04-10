@@ -1,6 +1,4 @@
-Here’s a professional and detailed `README.md` file for your project. It provides a clear overview of the project, its architecture, components, and how to set it up.
 
----
 
 # Real-Time Event-Driven Data Pipeline for an E-Commerce Shop
 
@@ -15,10 +13,13 @@ Here’s a professional and detailed `README.md` file for your project. It provi
    - [Amazon ECS Tasks](#amazon-ecs-tasks)
    - [Amazon DynamoDB](#amazon-dynamodb)
    - [CloudWatch Logs & Monitoring](#cloudwatch-logs--monitoring)
-5. [Setup Instructions](#setup-instructions)
-6. [Error Handling](#error-handling)
-7. [Monitoring & Alerts](#monitoring--alerts)
-8. [Future Enhancements](#future-enhancements)
+5. [KPIs Computed](#kpis-computed)
+   - [Category-Level KPIs](#category-level-kpis)
+   - [Order-Level KPIs](#order-level-kpis)
+6. [Setup Instructions](#setup-instructions)
+7. [Error Handling](#error-handling)
+8. [Monitoring & Alerts](#monitoring--alerts)
+9. [Future Enhancements](#future-enhancements)
 
 ---
 
@@ -42,7 +43,7 @@ The architecture is designed to handle end-to-end processing of incoming data fi
 4. **Storage**: Cleaned data is stored in a separate S3 bucket, and computed KPIs are written to DynamoDB tables.
 5. **Logging & Monitoring**: CloudWatch Logs track task execution and provide error alerts.
 
-![Architecture Diagram](https://via.placeholder.com/800x400) *(Replace this with an actual diagram if available)*
+![Architecture Diagram](https://via.placeholder.com/800x400) 
 
 ---
 
@@ -93,6 +94,37 @@ The architecture is designed to handle end-to-end processing of incoming data fi
 ### CloudWatch Logs & Monitoring
 - Tracks ECS task execution and logs errors.
 - Generates alerts for pipeline failures or anomalies.
+
+---
+## KPIs Computed
+
+The pipeline computes two types of KPIs to support operational analytics for the e-commerce platform. These KPIs are stored in Amazon DynamoDB tables, optimized for efficient querying.
+
+### Category-Level KPIs (Per Category, Per Day)
+
+These KPIs provide insights into the performance of individual product categories on a daily basis. The attributes include:
+
+| **Attribute**         | **Description**                                                                 |
+|------------------------|---------------------------------------------------------------------------------|
+| `category`            | Product category (e.g., Electronics, Apparel).                                  |
+| `order_date`          | Date of the summarized orders.                                                 |
+| `daily_revenue`       | Total revenue generated from that category for the day.                        |
+| `avg_order_value`     | Average value of individual orders in the category.                            |
+| `avg_return_rate`     | Percentage of returned orders for the category.                                |
+
+
+### Order-Level KPIs (Per Day)
+
+These KPIs summarize the overall performance of orders placed on the platform on a daily basis. The attributes include:
+
+| **Attribute**         | **Description**                                                                 |
+|------------------------|---------------------------------------------------------------------------------|
+| `order_date`          | Date of the summarized orders.                                                 |
+| `total_orders`        | Count of unique orders placed on the platform.                                 |
+| `total_revenue`       | Total revenue generated from all orders.                                       |
+| `total_items_sold`    | Total number of items sold across all orders.                                  |
+| `return_rate`         | Percentage of orders that were returned.                                       |
+| `unique_customers`    | Number of distinct customers who placed orders.                                |
 
 ---
 
@@ -150,36 +182,6 @@ The architecture is designed to handle end-to-end processing of incoming data fi
 - **Log Analysis**:
   - Use CloudWatch Logs Insights to analyze task execution logs.
 
----
-## KPIs Computed
-
-The pipeline computes two types of KPIs to support operational analytics for the e-commerce platform. These KPIs are stored in Amazon DynamoDB tables, optimized for efficient querying.
-
-### Category-Level KPIs (Per Category, Per Day)
-
-These KPIs provide insights into the performance of individual product categories on a daily basis. The attributes include:
-
-| **Attribute**         | **Description**                                                                 |
-|------------------------|---------------------------------------------------------------------------------|
-| `category`            | Product category (e.g., Electronics, Apparel).                                  |
-| `order_date`          | Date of the summarized orders.                                                 |
-| `daily_revenue`       | Total revenue generated from that category for the day.                        |
-| `avg_order_value`     | Average value of individual orders in the category.                            |
-| `avg_return_rate`     | Percentage of returned orders for the category.                                |
-
-
-### Order-Level KPIs (Per Day)
-
-These KPIs summarize the overall performance of orders placed on the platform on a daily basis. The attributes include:
-
-| **Attribute**         | **Description**                                                                 |
-|------------------------|---------------------------------------------------------------------------------|
-| `order_date`          | Date of the summarized orders.                                                 |
-| `total_orders`        | Count of unique orders placed on the platform.                                 |
-| `total_revenue`       | Total revenue generated from all orders.                                       |
-| `total_items_sold`    | Total number of items sold across all orders.                                  |
-| `return_rate`         | Percentage of orders that were returned.                                       |
-| `unique_customers`    | Number of distinct customers who placed orders.                                |
 
 ---
 ## Future Enhancements
@@ -194,6 +196,8 @@ These KPIs summarize the overall performance of orders placed on the platform on
    - Build a real-time dashboard using Amazon QuickSight to visualize KPIs.
 
 ---
+
+
 
 
 
