@@ -238,6 +238,38 @@ The workflow maintains idempotency and ensures all resources are properly cleane
 </p>
 
 ---
+
+## Notifications via Amazon SNS
+
+The pipeline is configured to send notifications via Amazon SNS for critical events such as task failures, cleanup issues, or successful executions. Below is an example of an email notification received from SNS:
+
+<p align="center">
+    <img src="images/SNS-email.png" alt="Power BI Dashboard" width="100%" />
+</p>
+
+
+These notifications ensure that stakeholders are informed about the pipeline's status in real time.
+
+...
+
+## Dashboarding with Power BI
+
+In addition to Amazon QuickSight, the pipeline supports visualization using **Power BI** for advanced analytics and reporting. Below is an example of a Power BI dashboard showcasing key metrics and trends.
+
+## Order KPI Dashboard
+<p align="center">
+    <img src="images/order_kpi.png" alt="Power BI Dashboard" width="100%" />
+</p>
+
+## Category KPI Dashboard
+<p align="center">
+    <img src="images/category_kpi.png" alt="Power BI Dashboard" width="100%" />
+</p>
+
+You can access the live Power BI report using the following link:  
+[Power BI Dashboard](https://app.powerbi.com/groups/me/reports/cb6ab9c3-900a-40be-ab1a-9a1cc5161e75/5c4a37414f322d9deb9f?experience=power-bi)
+
+...
 ## Setup Instructions
 
 ### Prerequisites
